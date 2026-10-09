@@ -8,6 +8,7 @@ a { color: var(--accent); }
 .ta-top { background: var(--ink); color: #fff; }
 .ta-top-inner { max-width: 980px; margin: 0 auto; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .ta-brand { color: #fff; text-decoration: none; font-weight: 800; letter-spacing: .01em; }
+.ta-page:empty { display: none; }
 .ta-brand span { color: #a8e0cf; font-weight: 600; }
 .ta-page { max-width: 980px; margin: 0 auto; padding: 28px 20px 80px; }
 .ta-back { margin: 0 0 18px; font-size: 14px; }
