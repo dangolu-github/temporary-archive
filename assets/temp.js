@@ -1,11 +1,11 @@
 // Temporary Archive · public shell. A learner's link carries a private key: index.html#<key> is the class page,
 // page.html?p=<page>#<key> one page (the key stays in the fragment, which is never sent to the web server). The pages
-// come from the private backend only for that key. Nothing is submitted and nothing is checked automatically:
-// homework choices stay in this browser, and keys and explanations appear only after the teacher releases them.
+// come from the private backend only for that key. Designated homework accepts deliberate final submissions;
+// drafts remain in this browser. Nothing is checked automatically. Answer release stays teacher-controlled.
 (() => {
   const config = window.TA_PORTAL_CONFIG || {};
   const esc = (value) => String(value == null ? '' : value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const key = window.location.hash.replace(/^#/, '').replace(/[^a-f0-9]/gi, '').toLowerCase().slice(0, 64);
+  const key = window.location.hash.replace(/^#/, '').replace(/[^a-z0-9-]/gi, '').slice(0, 64);
   const pageId = String(new URLSearchParams(window.location.search).get('p') || '').replace(/[^A-Za-z0-9_.:-]/g, '').slice(0, 120);
   const view = document.body.dataset.view;
   const main = document.getElementById('ta-main');
@@ -37,9 +37,16 @@
   function renderEntry(data) {
     document.title = data.name + ' · ' + (data.classTitle || 'Trial class');
     const kicker = [data.name, data.course, 'Trial class', longDate(data.classDate)].filter(Boolean).join(' · ');
-    const sections = (data.sections || []).map((s) => '<section class="ta-section" id="' + esc(s.id) + '"><h2>' + esc(s.heading) + '</h2>' +
-      s.items.map((it) => '<a class="item" href="page.html?p=' + encodeURIComponent(it.id) + '#' + key + '">' + esc(it.label) + '<span>Open →</span></a>').join('') + '</section>').join('');
+    const sections = (data.sections || []).map((s) => '<details class="ta-section" data-fold="' + esc(s.id) + '"><summary>' + esc(s.heading) + '</summary>' +
+      s.items.map((it) => '<a class="item" href="page.html?p=' + encodeURIComponent(it.id) + '#' + key + '">' + esc(it.label) + '<span>Open →</span></a>').join('') + '</details>').join('');
     main.innerHTML = '<p class="ta-kicker">' + esc(kicker) + '</p><h1>' + esc(data.classTitle || 'Trial class') + '</h1>' + (sections || '<p class="ta-lead">Pages will appear here after the class.</p>');
+    folds();
+  }
+
+  function folds() {
+    document.querySelectorAll('details[data-fold]').forEach(d=>{const k='ta-fold:'+pageId+':'+d.dataset.fold;try{d.open=localStorage.getItem(k)==='1';}catch(e){}d.addEventListener('toggle',()=>{try{localStorage.setItem(k,d.open?'1':'0');}catch(e){}});});
+    window.addEventListener('beforeprint',()=>document.querySelectorAll('details').forEach(d=>{d.dataset.wasOpen=String(d.open);d.open=true;}));
+    window.addEventListener('afterprint',()=>document.querySelectorAll('details').forEach(d=>{d.open=d.dataset.wasOpen==='true';}));
   }
 
   // ---------- one page ----------
@@ -50,14 +57,15 @@
   }
 
   function renderHomework(data) {
+    document.body.dataset.homework="true";
     document.title = data.label;
     const back = document.querySelector('.ta-bar a');
     if (back) back.href = './#' + key;
     const title = document.querySelector('.ta-bar-title');
     if (title) title.textContent = data.label;
     let html = '<header><div class="eyebrow">' + esc(data.course) + ' · Trial homework</div><h1>' + esc(data.title || data.label) + '</h1></header>';
-    (data.sections || []).forEach((section) => {
-      html += '<section>' + (section.title ? '<h2>' + esc(section.title) + '</h2>' : '');
+    (data.sections || []).forEach((section, sectionIndex) => {
+      html += '<details class="ta-task-section" data-fold="part-'+sectionIndex+'"><summary>' + esc(section.title || 'Questions') + '</summary>';
       section.items.forEach((item) => {
         let choices = '';
         if (item.type === 'mc') {
@@ -70,10 +78,14 @@
           (item.instruction ? '<p class="instruction">' + item.instruction + '</p>' : '') + (item.gloss ? '<p class="gloss">' + item.gloss + '</p>' : '') +
           choices + '<div class="workspace" aria-hidden="true"></div></article>';
       });
-      html += '</section>';
+      html += '</details>';
     });
     html += '<div id="ta-answers" class="ta-answers" hidden></div>';
-    main.innerHTML = html;
+    main.innerHTML = '<nav class="ta-tools"><button id="ta-open">Open all</button><button id="ta-close">Close all</button><button id="ta-print">Print / Save as PDF</button></nav>'+html;
+    document.getElementById('ta-open').onclick=()=>document.querySelectorAll('details').forEach(d=>d.open=true);
+    document.getElementById('ta-close').onclick=()=>document.querySelectorAll('details').forEach(d=>d.open=false);
+    document.getElementById('ta-print').onclick=()=>window.print();
+    folds();
     homework(data.id);
   }
 
@@ -81,7 +93,7 @@
     const items = Array.from(document.querySelectorAll('.hw-item[data-n]'));
     const letters = ['A', 'B', 'C', 'D'];
     const storage = (() => { try { return window.localStorage; } catch { return null; } })();
-    const storageKey = 'ta-hw:' + assignmentId;
+    const storageKey = (key.startsWith('qa-')?'ta-test:'+key+':':'ta-hw:') + assignmentId;
     const load = () => { try { return JSON.parse((storage && storage.getItem(storageKey)) || '{}') || {}; } catch { return {}; } };
     const state = { responses: load(), released: false };
     const save = () => { try { if (storage) storage.setItem(storageKey, JSON.stringify(state.responses)); } catch { /* private mode */ } };
@@ -116,9 +128,10 @@
     });
     paint();
     fetchCorrection();
+    window.TrialSubmission({main,items,state,save,paint,key,assignmentId,endpoint:config.endpoint,read:()=>jsonp('getSubmissionState',{t:key,assignment:assignmentId}),refreshCorrection:fetchCorrection});
 
     function choose(n, letter) {
-      if (state.released) return;
+      if (state.released || state.submitted) return;
       state.responses[n] = state.responses[n] === letter ? '' : letter;
       save();
       paint();
@@ -145,15 +158,14 @@
     }
     function fetchCorrection() {
       jsonp('getCorrection', { t: key, assignment: assignmentId }).then((data) => {
-        if (data && data.ok && data.released && Array.isArray(data.items)) { show(data.items); return; }
-        if (data && data.ok) line('Answers not released yet.');
+        if (data && data.ok && data.released && Array.isArray(data.items)) { if(!state.released)show(data.items); poll(); return; }
+        if (data && data.ok) {if(state.released){state.released=false;document.querySelectorAll('.ta-explain').forEach(e=>e.remove());document.querySelectorAll('.ta-choice').forEach(e=>e.classList.remove('is-key','is-miss'));items.forEach(i=>{i.classList.remove('is-correct','is-wrong');const a=i.querySelector('textarea');if(a)a.readOnly=!!state.submitted;});}line('Answers not released yet.');}
         poll();
       }).catch(poll);
     }
     function poll() {
-      if (state.released) return;
       window.clearTimeout(pollTimer);
-      pollTimer = window.setTimeout(fetchCorrection, 60000);
+      pollTimer = window.setTimeout(()=>{if(document.hidden)poll();else fetchCorrection();}, 60000);
     }
     function show(corrections) {
       state.released = true;

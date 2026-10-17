@@ -70,3 +70,8 @@ a.item:focus-visible, .ta-choice:focus-visible { outline: 3px solid #d39a2b; out
 }
 /* Trial pages are for reading on screen; printing is not offered. */
 @media print { body > * { display: none !important; } body::before { content: "This page is for viewing on screen."; display: block; padding: 40px; font: 14pt system-ui; } }
+
+/* Final hand-in and fold controls. */
+summary{cursor:pointer;font-weight:700;padding:14px 0}details.ta-task-section{border-top:1px solid #d3e0da;margin-top:18px}details.ta-task-section>summary{font-size:1.3rem}.ta-tools{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.ta-submit{margin:28px 0;padding:20px;border:1px solid #d3e0da;border-radius:12px;background:#f0f7f3}.ta-submit button,.ta-tools button{padding:10px 16px;border:0;border-radius:8px;background:#25685e;color:white;cursor:pointer}.ta-submit button:disabled{opacity:.55}.ta-submit p{overflow-wrap:anywhere}.ta-submit[data-test]::before{content:'Isolated teacher test';display:block;font-weight:bold;color:#8a611c}@media print{.ta-tools,.ta-submit button,.ta-bar{display:none!important}details>summary{display:block}details>*{display:block!important}body,main{max-width:none!important}}
+
+@media print{body[data-homework="true"]::before{display:none!important}body[data-homework="true"]>main{display:block!important}}
